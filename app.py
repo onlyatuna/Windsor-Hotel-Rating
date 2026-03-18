@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-CSV_PATH = "reviews.csv"
+CSV_PATH = "reviews_clean.csv"
 
 st.set_page_config(page_title="裕元花園酒店 Google 評論", page_icon="🏨", layout="wide")
 st.title("🏨 裕元花園酒店 — Google 評論分析")
