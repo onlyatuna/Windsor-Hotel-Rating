@@ -15,6 +15,17 @@ OUTPUT_FILE = "reviews.csv"
 
 IS_LINUX = platform.system() == "Linux"
 
+# Streamlit Cloud (Ubuntu) 的 Chromium 路徑候選
+_CHROMIUM_BINS = ["/usr/bin/chromium-browser", "/usr/bin/chromium"]
+_CHROMEDRIVER_BINS = ["/usr/bin/chromedriver", "/usr/lib/chromium-browser/chromedriver"]
+
+
+def _find(paths):
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return None
+
 
 def init_driver():
     options = webdriver.ChromeOptions()
@@ -24,12 +35,19 @@ def init_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
 
     if IS_LINUX:
-        # Streamlit Cloud 使用系統 Chromium
-        options.binary_location = "/usr/bin/chromium"
-        service = Service("/usr/bin/chromedriver")
+        chromium = _find(_CHROMIUM_BINS)
+        chromedriver = _find(_CHROMEDRIVER_BINS)
+        if not chromium or not chromedriver:
+            raise RuntimeError(
+                f"找不到 Chromium（搜尋：{_CHROMIUM_BINS}）或 chromedriver（搜尋：{_CHROMEDRIVER_BINS}）"
+            )
+        options.binary_location = chromium
+        service = Service(chromedriver)
     else:
         service = Service(ChromeDriverManager().install())
 
