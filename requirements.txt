@@ -3,4 +3,4 @@ undetected-chromedriver
 webdriver-manager
 pandas
 streamlit
-altair>=4.0,<5
+pyarrow<12
