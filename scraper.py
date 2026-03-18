@@ -1,7 +1,6 @@
 import time
 import csv
 import os
-import platform
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,19 +12,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 GOOGLE_MAPS_URL = "https://www.google.com/maps/place/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97/@24.1391,120.6837,17z"
 OUTPUT_FILE = "reviews.csv"
 
-IS_LINUX = platform.system() == "Linux"
-
-# Streamlit Cloud (Debian Trixie) 的 Chromium 路徑候選
-_CHROMIUM_BINS = ["/usr/bin/chromium", "/usr/bin/chromium-browser"]
-_CHROMEDRIVER_BINS = ["/usr/bin/chromedriver", "/usr/lib/chromium/chromedriver", "/usr/lib/chromium-browser/chromedriver"]
-
-
-def _find(paths):
-    for p in paths:
-        if os.path.exists(p):
-            return p
-    return None
-
 
 def init_driver():
     options = webdriver.ChromeOptions()
@@ -35,22 +21,9 @@ def init_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument("--disable-setuid-sandbox")
-    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
 
-    if IS_LINUX:
-        chromium = _find(_CHROMIUM_BINS)
-        chromedriver = _find(_CHROMEDRIVER_BINS)
-        if not chromium or not chromedriver:
-            raise RuntimeError(
-                f"找不到 Chromium（搜尋：{_CHROMIUM_BINS}）或 chromedriver（搜尋：{_CHROMEDRIVER_BINS}）"
-            )
-        options.binary_location = chromium
-        service = Service(chromedriver)
-    else:
-        service = Service(ChromeDriverManager().install())
-
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 

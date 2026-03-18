@@ -1,22 +1,12 @@
 import os
 import pandas as pd
 import streamlit as st
-from scraper import scrape
+from datetime import datetime
 
 CSV_PATH = "reviews.csv"
 
 st.set_page_config(page_title="裕元花園酒店 Google 評論", page_icon="🏨", layout="wide")
 st.title("🏨 裕元花園酒店 — Google 評論分析")
-
-# ── 即時爬取按鈕 ──────────────────────────────────────────
-if st.button("🔄 立即爬取最新評論", type="primary"):
-    with st.spinner("正在爬取 Google Maps 評論，請稍候（約 1-3 分鐘）..."):
-        try:
-            count = scrape(CSV_PATH)
-            st.success(f"✅ 成功爬取 {count} 筆評論！")
-            st.cache_data.clear()
-        except Exception as e:
-            st.error(f"❌ 爬取失敗：{e}")
 
 # ── 載入資料 ──────────────────────────────────────────────
 @st.cache_data
@@ -24,11 +14,15 @@ def load_data(path):
     return pd.read_csv(path, encoding="utf-8-sig")
 
 if not os.path.exists(CSV_PATH):
-    st.info("尚無資料，請點擊上方按鈕爬取評論。")
+    st.info("尚無資料，GitHub Actions 每天上午 10 點（台灣時間）會自動更新。")
     st.stop()
 
 df = load_data(CSV_PATH)
 df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+
+# 顯示最後更新時間
+mtime = os.path.getmtime(CSV_PATH)
+st.caption(f"資料最後更新：{datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')}")
 
 # ── 側邊欄篩選 ────────────────────────────────────────────
 st.sidebar.header("篩選條件")

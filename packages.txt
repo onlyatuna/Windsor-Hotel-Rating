@@ -1,2 +1,1 @@
-chromium
-chromium-driver
+# Streamlit Cloud 用不到（改用 GitHub Actions 爬取）
