@@ -11,7 +11,11 @@ st.title("🏨 裕元花園酒店 — Google 評論分析")
 # ── 載入資料 ──────────────────────────────────────────────
 @st.cache_data
 def load_data(path):
-    return pd.read_csv(path, encoding="utf-8-sig")
+    df = pd.read_csv(path, encoding="utf-8-sig")
+    # 避免 PyArrow LargeUtf8 相容性問題
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].astype(str)
+    return df
 
 if not os.path.exists(CSV_PATH):
     st.info("尚無資料，GitHub Actions 每天上午 10 點（台灣時間）會自動更新。")
