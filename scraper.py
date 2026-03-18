@@ -9,11 +9,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
-# 強制指定語言，讓 Google Maps 回傳中文介面
-GOOGLE_MAPS_URL = (
-    "https://www.google.com/maps/place/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97"
-    "/@24.1391,120.6837,17z?hl=zh-TW"
-)
+SEARCH_URL = "https://www.google.com/maps/search/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97?hl=zh-TW"
 OUTPUT_FILE = "reviews.csv"
 
 # 評論頁籤的可能文字（中文 / 英文 / 備用 aria-label）
@@ -119,19 +115,27 @@ def scrape(output_path=OUTPUT_FILE):
     wait = WebDriverWait(driver, 30)
 
     try:
-        driver.get(GOOGLE_MAPS_URL)
-        time.sleep(3)  # 等 JS 渲染
+        # 1. 搜尋飯店
+        driver.get(SEARCH_URL)
+        time.sleep(4)
+        driver.save_screenshot("screenshot_1_search.png")
 
-        # 截圖（供 GitHub Actions artifact 除錯用）
-        driver.save_screenshot("screenshot_loaded.png")
+        # 2. 點擊第一個搜尋結果，打開詳情面板
+        first_result = wait.until(
+            EC.element_to_be_clickable(
+                (By.XPATH, '(//a[@href and contains(@href,"/maps/place/")])[1]')
+            )
+        )
+        first_result.click()
+        time.sleep(3)
+        driver.save_screenshot("screenshot_2_detail.png")
 
-        # 點擊「評論」頁籤
+        # 3. 點擊「評論」頁籤
         try:
             reviews_tab = wait.until(EC.element_to_be_clickable((By.XPATH, _REVIEWS_TAB_XPATH)))
             reviews_tab.click()
         except TimeoutException:
-            driver.save_screenshot("screenshot_tab_fail.png")
-            # 印出頁面標題和目前 tabs，方便診斷
+            driver.save_screenshot("screenshot_3_tab_fail.png")
             tabs = driver.find_elements(By.XPATH, '//button[@role="tab"]')
             tab_texts = [t.text for t in tabs]
             raise RuntimeError(f"找不到評論頁籤。目前 tabs：{tab_texts}")
