@@ -12,9 +12,9 @@ st.title("🏨 裕元花園酒店 — Google 評論分析")
 @st.cache_data
 def load_data(path):
     df = pd.read_csv(path, encoding="utf-8-sig")
-    # 避免 PyArrow LargeUtf8 相容性問題
+    # 將空值統一為空字串，避免顯示 nan
     for col in df.select_dtypes(include="object").columns:
-        df[col] = df[col].astype(str)
+        df[col] = df[col].fillna("").astype(str)
     return df
 
 if not os.path.exists(CSV_PATH):
