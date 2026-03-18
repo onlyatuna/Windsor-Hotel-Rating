@@ -22,7 +22,8 @@ def clean_review(text):
     if not text or str(text).lower() == 'nan':
         return ""
 
-    # 1. 移除 Google 翻譯標籤
+    # 1. 基礎清理
+    text = text.replace('\r', ' ').replace('\n', ' ')
     text = re.sub(r'\(?由 Google 提供翻譯\)?', '', text)
     text = re.sub(r'\(?原始評論\)?', '', text)
 
@@ -33,51 +34,52 @@ def clean_review(text):
     match = re.search(
         r'親愛的|謝謝您的回饋|很抱歉這次|'
         r'這是裕元花園酒店的客服信箱|guestservice@|'
-        r'祝您身體健康|期待您下次|竭盡所能協助您',
+        r'祝您身體健康|期待您下次|竭盡所能協助您|'
+        r'感謝您撥空|敬祝 平安健康',
         text
     )
     if match:
         text = text[:match.start()]
 
-    # 4. 移除「其他 N 項」及其後內容
+    # 4. 移除「其他 N 項」及其後所有內容（含後綴人名）
     text = re.sub(r'其他 \d+ 項.*', '', text)
 
-    # 5. 移除評論出處、入住日期、日期碼等元資料
+    # 5. 移除元資料
     text = re.sub(r'評論出處：\s*Google', '', text)
     text = re.sub(r'入住日期[\d\.\-/年月日\s：:]+', '', text)
     text = re.sub(r'餐飲地點[^\s]{0,20}', '', text)
     text = re.sub(r'\b20\d{6}\b', '', text)
 
     # 6. 移除英文人名（全大寫、首字大寫、全小寫、CamelCase）
-    text = re.sub(r'\b(?:[A-Z]{2,}\s){1,3}[A-Z]{2,}\b', _is_name_like, text)   # 全大寫
-    text = re.sub(r'\b[A-Z][a-z]+(?:\s[A-Z][A-Za-z]*){1,3}\b', _is_name_like, text)  # 首字大寫
-    text = re.sub(r'\b[a-z]+(?:\s[a-z]+){1,2}\b', _is_name_like, text)          # 全小寫
-    text = re.sub(r'\b[A-Z][a-z]+[A-Z][a-z]+(?:\s[A-Z][a-z]+)?\b', _is_name_like, text)  # CamelCase
+    text = re.sub(r'\b(?:[A-Z]{2,}\s){1,3}[A-Z]{2,}\b', _is_name_like, text)
+    text = re.sub(r'\b[A-Z][a-z]+(?:\s[A-Z][A-Za-z]*){1,3}\b', _is_name_like, text)
+    text = re.sub(r'\b[a-z]+(?:\s[a-z]+){1,2}\b', _is_name_like, text)
+    text = re.sub(r'\b[A-Z][a-z]+[A-Z][a-z]+(?:\s[A-Z][a-z]+)?\b', _is_name_like, text)
 
     # 7. 移除英數混合代碼（如「923a Chih」）
     text = re.sub(r'\b[0-9]{1,4}[a-z]\s+[A-Z][a-z]+\b', '', text)
 
-    # 先清除多餘空白，確保後續 ^ 錨點正確
+    # 中間 strip 確保後續 ^ 錨點正確
     text = text.strip()
 
-    # 8. 移除結尾的單字英文名（如 Fanool、Ponrt）
+    # 8. 移除開頭首字大寫英文名後接中文（如「Wei Chen 曾經...」）
+    text = re.sub(r'^[A-Z][a-z]+\s+[A-Z][a-z]+\s+(?=[\u4e00-\u9fff])', '', text)
+    # 移除結尾單字英文名（如「Fanool」）
     text = re.sub(r'\s+[A-Z][a-z]{2,12}$', '', text)
-    # 移除開頭的中英混合短名（如「Leco哈古將」）
+    # 移除開頭中英混合短名（如「Leco哈古將」）
     text = re.sub(r'^[A-Za-z]{2,6}[\u4e00-\u9fff]{1,5}\s+', '', text)
 
-    # 9. 清理空括號
+    # 9. 清理空括號與多餘空白
     text = re.sub(r'[（(]\s*[）)]', '', text)
-
-    # 9. 清理多餘空白
     text = re.sub(r'\s{2,}', ' ', text)
     text = text.strip()
 
-    # 10. 清理後無中文且長度 < 40 → 視為空（只剩英文名/代碼）
+    # 10. 無中文且長度 < 40 → 視為空
     has_chinese = bool(re.search(r'[\u4e00-\u9fff]', text))
     if not has_chinese and len(text) < 40:
         return ""
 
-    # 11. 只剩短中文人名（≤8字、無句子標點、無空格）→ 視為空
+    # 11. 短中文人名（≤8字、無句子標點）→ 視為空
     has_sent_punct = bool(re.search(r'[，。！？、；：,!?]', text))
     if has_chinese and len(text) <= 8 and not has_sent_punct:
         return ""
