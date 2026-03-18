@@ -9,19 +9,40 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 
-GOOGLE_MAPS_URL = "https://www.google.com/maps/place/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97/@24.1391,120.6837,17z"
+# 強制指定語言，讓 Google Maps 回傳中文介面
+GOOGLE_MAPS_URL = (
+    "https://www.google.com/maps/place/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97"
+    "/@24.1391,120.6837,17z?hl=zh-TW"
+)
 OUTPUT_FILE = "reviews.csv"
+
+# 評論頁籤的可能文字（中文 / 英文 / 備用 aria-label）
+_REVIEWS_TAB_XPATH = (
+    '//button[@role="tab" and ('
+    'contains(., "評論") or contains(., "Reviews") or '
+    'contains(@aria-label, "評論") or contains(@aria-label, "Reviews"))]'
+)
+# 「展開」按鈕（中英文）
+_MORE_BTN_XPATH = (
+    '//button[contains(@aria-label, "更多") or contains(@aria-label, "More") '
+    'or contains(., "更多") or contains(., "More")]'
+    '[ancestor::div[@data-review-id]]'
+)
 
 
 def init_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("--lang=zh-TW")
+    options.add_argument("--accept-lang=zh-TW,zh;q=0.9")
     options.add_argument("--disable-notifications")
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    options.add_experimental_option(
+        "prefs", {"intl.accept_languages": "zh-TW,zh"}
+    )
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
@@ -29,9 +50,8 @@ def init_driver():
 
 
 def expand_reviews(driver):
-    """點開所有「更多」按鈕以顯示完整評論"""
     try:
-        more_buttons = driver.find_elements(By.XPATH, '//button[@aria-label="顯示更多內容"]')
+        more_buttons = driver.find_elements(By.XPATH, _MORE_BTN_XPATH)
         for btn in more_buttons:
             driver.execute_script("arguments[0].click();", btn)
             time.sleep(0.3)
@@ -40,7 +60,6 @@ def expand_reviews(driver):
 
 
 def scroll_reviews(driver, panel, pause=1.5):
-    """在評論面板中持續捲動直到無新內容"""
     last_height = driver.execute_script("return arguments[0].scrollHeight", panel)
     while True:
         driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", panel)
@@ -96,27 +115,33 @@ def save_csv(reviews, path=OUTPUT_FILE):
 
 
 def scrape(output_path=OUTPUT_FILE):
-    """爬取評論並儲存至 CSV，回傳筆數。供 app.py 呼叫。"""
     driver = init_driver()
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 30)
 
     try:
         driver.get(GOOGLE_MAPS_URL)
+        time.sleep(3)  # 等 JS 渲染
+
+        # 截圖（供 GitHub Actions artifact 除錯用）
+        driver.save_screenshot("screenshot_loaded.png")
 
         # 點擊「評論」頁籤
-        reviews_tab = wait.until(
-            EC.element_to_be_clickable(
-                (By.XPATH, '//button[@role="tab" and contains(., "評論")]')
-            )
-        )
-        reviews_tab.click()
+        try:
+            reviews_tab = wait.until(EC.element_to_be_clickable((By.XPATH, _REVIEWS_TAB_XPATH)))
+            reviews_tab.click()
+        except TimeoutException:
+            driver.save_screenshot("screenshot_tab_fail.png")
+            # 印出頁面標題和目前 tabs，方便診斷
+            tabs = driver.find_elements(By.XPATH, '//button[@role="tab"]')
+            tab_texts = [t.text for t in tabs]
+            raise RuntimeError(f"找不到評論頁籤。目前 tabs：{tab_texts}")
+
         time.sleep(2)
+        driver.save_screenshot("screenshot_reviews.png")
 
         # 找到可捲動的評論面板
         panel = wait.until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//div[@role="feed" and @tabindex]')
-            )
+            EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
         )
 
         scroll_reviews(driver, panel)
@@ -124,8 +149,6 @@ def scrape(output_path=OUTPUT_FILE):
         save_csv(reviews, output_path)
         return len(reviews)
 
-    except TimeoutException as e:
-        raise RuntimeError(f"逾時錯誤：{e}")
     finally:
         driver.quit()
 

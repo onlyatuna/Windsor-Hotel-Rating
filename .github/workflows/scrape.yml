@@ -30,6 +30,13 @@ jobs:
       - name: Run scraper
         run: python scraper.py
 
+      - name: Upload debug screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: screenshot_*.png
+
       - name: Commit and push reviews.csv
         run: |
           git config user.name "github-actions[bot]"
