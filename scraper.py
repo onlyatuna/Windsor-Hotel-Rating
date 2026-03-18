@@ -12,26 +12,24 @@ from webdriver_manager.chrome import ChromeDriverManager
 SEARCH_URL = "https://www.google.com/maps/search/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97?hl=zh-TW"
 OUTPUT_FILE = "reviews.csv"
 
-# 評論頁籤的可能文字（中文 / 英文 / 備用 aria-label）
-_REVIEWS_TAB_XPATH = (
-    '//button[@role="tab" and ('
-    'contains(., "評論") or contains(., "Reviews") or '
-    'contains(@aria-label, "評論") or contains(@aria-label, "Reviews"))]'
+# 點星評數（則評論）以打開評論面板
+_REVIEW_COUNT_XPATH = (
+    '//button[contains(@aria-label, "則評論") or contains(@aria-label, "reviews")]'
+    '| //div[@jsaction and .//span[contains(., "則評論")]]'
+    '| //span[@role="img" and contains(@aria-label, "顆星")]/following-sibling::span/button'
 )
-# 「展開」按鈕（中英文）
+
+# 「展開全文」按鈕
 _MORE_BTN_XPATH = (
-    '//button[contains(@aria-label, "更多") or contains(@aria-label, "More") '
-    'or contains(., "更多") or contains(., "More")]'
+    '//button[@aria-label="顯示更多內容" or @aria-label="See more"]'
     '[ancestor::div[@data-review-id]]'
 )
 
 
-def init_driver():
+def init_driver(headless=True):
     options = webdriver.ChromeOptions()
     options.add_argument("--lang=zh-TW")
-    options.add_argument("--accept-lang=zh-TW,zh;q=0.9")
     options.add_argument("--disable-notifications")
-    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -39,16 +37,16 @@ def init_driver():
     options.add_experimental_option(
         "prefs", {"intl.accept_languages": "zh-TW,zh"}
     )
+    if headless:
+        options.add_argument("--headless=new")
 
     service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
+    return webdriver.Chrome(service=service, options=options)
 
 
 def expand_reviews(driver):
     try:
-        more_buttons = driver.find_elements(By.XPATH, _MORE_BTN_XPATH)
-        for btn in more_buttons:
+        for btn in driver.find_elements(By.XPATH, _MORE_BTN_XPATH):
             driver.execute_script("arguments[0].click();", btn)
             time.sleep(0.3)
     except Exception:
@@ -69,8 +67,7 @@ def scroll_reviews(driver, panel, pause=1.5):
 
 def parse_reviews(driver):
     reviews = []
-    cards = driver.find_elements(By.XPATH, '//div[@data-review-id]')
-    for card in cards:
+    for card in driver.find_elements(By.XPATH, '//div[@data-review-id]'):
         try:
             reviewer = card.find_element(By.XPATH, './/div[@class="d4r55 "]').text.strip()
         except NoSuchElementException:
@@ -92,12 +89,7 @@ def parse_reviews(driver):
         except NoSuchElementException:
             text = ""
 
-        reviews.append({
-            "reviewer": reviewer,
-            "rating": rating,
-            "date": date,
-            "review": text,
-        })
+        reviews.append({"reviewer": reviewer, "rating": rating, "date": date, "review": text})
     return reviews
 
 
@@ -110,34 +102,32 @@ def save_csv(reviews, path=OUTPUT_FILE):
     print(f"已儲存 {len(reviews)} 筆評論 → {path}")
 
 
-def scrape(output_path=OUTPUT_FILE):
-    driver = init_driver()
+def scrape(output_path=OUTPUT_FILE, headless=True):
+    driver = init_driver(headless=headless)
     wait = WebDriverWait(driver, 30)
 
     try:
-        # 1. 搜尋飯店（搜尋結果唯一時會自動打開詳情面板）
         driver.get(SEARCH_URL)
         time.sleep(5)
-        driver.save_screenshot("screenshot_1_search.png")
+        driver.save_screenshot("screenshot_1_loaded.png")
 
-        # 2. 點擊「評論」頁籤
+        # 點擊星評數字（「N 則評論」）打開評論面板
         try:
-            reviews_tab = wait.until(EC.element_to_be_clickable((By.XPATH, _REVIEWS_TAB_XPATH)))
-            reviews_tab.click()
+            review_btn = wait.until(
+                EC.element_to_be_clickable((By.XPATH, _REVIEW_COUNT_XPATH))
+            )
+            review_btn.click()
         except TimeoutException:
-            driver.save_screenshot("screenshot_2_tab_fail.png")
-            tabs = driver.find_elements(By.XPATH, '//button[@role="tab"]')
-            tab_texts = [t.text for t in tabs]
-            raise RuntimeError(f"找不到評論頁籤。目前 tabs：{tab_texts}")
+            driver.save_screenshot("screenshot_2_fail.png")
+            # 印出頁面所有可點擊的按鈕文字，方便診斷
+            btns = [b.get_attribute("aria-label") or b.text for b in
+                    driver.find_elements(By.XPATH, '//button')]
+            raise RuntimeError(f"找不到評論入口。按鈕列表：{btns[:30]}")
 
         time.sleep(2)
-        driver.save_screenshot("screenshot_reviews.png")
+        driver.save_screenshot("screenshot_2_reviews.png")
 
-        # 找到可捲動的評論面板
-        panel = wait.until(
-            EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]'))
-        )
-
+        panel = wait.until(EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]')))
         scroll_reviews(driver, panel)
         reviews = parse_reviews(driver)
         save_csv(reviews, output_path)
@@ -148,5 +138,6 @@ def scrape(output_path=OUTPUT_FILE):
 
 
 if __name__ == "__main__":
-    count = scrape()
+    # 本地執行時顯示瀏覽器視窗（headless=False）
+    count = scrape(headless=False)
     print(f"共抓取 {count} 筆評論")
