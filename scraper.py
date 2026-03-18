@@ -1,6 +1,7 @@
 import time
 import csv
 import os
+import platform
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -12,18 +13,27 @@ from webdriver_manager.chrome import ChromeDriverManager
 GOOGLE_MAPS_URL = "https://www.google.com/maps/place/%E8%A3%95%E5%85%83%E8%8A%B1%E5%9C%92%E9%85%92%E5%BA%97/@24.1391,120.6837,17z"
 OUTPUT_FILE = "reviews.csv"
 
+IS_LINUX = platform.system() == "Linux"
+
 
 def init_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("--lang=zh-TW")
     options.add_argument("--disable-notifications")
-    # 如果不想看到瀏覽器視窗，取消下行的註解
-    # options.add_argument("--headless")
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options,
-    )
-    driver.maximize_window()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+
+    if IS_LINUX:
+        # Streamlit Cloud 使用系統 Chromium
+        options.binary_location = "/usr/bin/chromium"
+        service = Service("/usr/bin/chromedriver")
+    else:
+        service = Service(ChromeDriverManager().install())
+
+    driver = webdriver.Chrome(service=service, options=options)
     return driver
 
 
@@ -94,7 +104,8 @@ def save_csv(reviews, path=OUTPUT_FILE):
     print(f"已儲存 {len(reviews)} 筆評論 → {path}")
 
 
-def main():
+def scrape(output_path=OUTPUT_FILE):
+    """爬取評論並儲存至 CSV，回傳筆數。供 app.py 呼叫。"""
     driver = init_driver()
     wait = WebDriverWait(driver, 20)
 
@@ -117,18 +128,17 @@ def main():
             )
         )
 
-        print("開始捲動載入評論...")
         scroll_reviews(driver, panel)
-
         reviews = parse_reviews(driver)
-        print(f"共抓取 {len(reviews)} 筆評論")
-        save_csv(reviews)
+        save_csv(reviews, output_path)
+        return len(reviews)
 
     except TimeoutException as e:
-        print(f"逾時錯誤：{e}")
+        raise RuntimeError(f"逾時錯誤：{e}")
     finally:
         driver.quit()
 
 
 if __name__ == "__main__":
-    main()
+    count = scrape()
+    print(f"共抓取 {count} 筆評論")
