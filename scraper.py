@@ -115,27 +115,17 @@ def scrape(output_path=OUTPUT_FILE):
     wait = WebDriverWait(driver, 30)
 
     try:
-        # 1. 搜尋飯店
+        # 1. 搜尋飯店（搜尋結果唯一時會自動打開詳情面板）
         driver.get(SEARCH_URL)
-        time.sleep(4)
+        time.sleep(5)
         driver.save_screenshot("screenshot_1_search.png")
 
-        # 2. 點擊第一個搜尋結果，打開詳情面板
-        first_result = wait.until(
-            EC.element_to_be_clickable(
-                (By.XPATH, '(//a[@href and contains(@href,"/maps/place/")])[1]')
-            )
-        )
-        first_result.click()
-        time.sleep(3)
-        driver.save_screenshot("screenshot_2_detail.png")
-
-        # 3. 點擊「評論」頁籤
+        # 2. 點擊「評論」頁籤
         try:
             reviews_tab = wait.until(EC.element_to_be_clickable((By.XPATH, _REVIEWS_TAB_XPATH)))
             reviews_tab.click()
         except TimeoutException:
-            driver.save_screenshot("screenshot_3_tab_fail.png")
+            driver.save_screenshot("screenshot_2_tab_fail.png")
             tabs = driver.find_elements(By.XPATH, '//button[@role="tab"]')
             tab_texts = [t.text for t in tabs]
             raise RuntimeError(f"找不到評論頁籤。目前 tabs：{tab_texts}")
