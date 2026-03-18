@@ -15,9 +15,9 @@ OUTPUT_FILE = "reviews.csv"
 
 IS_LINUX = platform.system() == "Linux"
 
-# Streamlit Cloud (Ubuntu) 的 Chromium 路徑候選
-_CHROMIUM_BINS = ["/usr/bin/chromium-browser", "/usr/bin/chromium"]
-_CHROMEDRIVER_BINS = ["/usr/bin/chromedriver", "/usr/lib/chromium-browser/chromedriver"]
+# Streamlit Cloud (Debian Trixie) 的 Chromium 路徑候選
+_CHROMIUM_BINS = ["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+_CHROMEDRIVER_BINS = ["/usr/bin/chromedriver", "/usr/lib/chromium/chromedriver", "/usr/lib/chromium-browser/chromedriver"]
 
 
 def _find(paths):
