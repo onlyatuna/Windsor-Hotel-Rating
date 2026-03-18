@@ -1,4 +1,5 @@
 selenium
+undetected-chromedriver
 webdriver-manager
 pandas
 streamlit

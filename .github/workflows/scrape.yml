@@ -21,14 +21,17 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install system dependencies
+        run: sudo apt-get install -y xvfb
+
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v1
 
       - name: Install Python dependencies
-        run: pip install selenium webdriver-manager pandas
+        run: pip install undetected-chromedriver selenium pandas
 
       - name: Run scraper
-        run: python scraper.py
+        run: xvfb-run python scraper.py
 
       - name: Upload debug screenshots
         if: failure()
